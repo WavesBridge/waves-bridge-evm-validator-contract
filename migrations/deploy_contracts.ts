@@ -1,18 +1,20 @@
 import Web3 from 'web3';
-const {toWei} = Web3.utils;
 
 module.exports = (artifacts: Truffle.Artifacts) => {
   return async function (deployer: Truffle.Deployer, network: string, addresses: string[]) {
-    if (network == 'polygon-fork') {
+    if (network === 'test') {
+      return;
+    }
+    if (network === 'polygon-fork') {
       network = 'polygon';
     }
-    if (network == 'mainnet-fork') {
+    if (network === 'mainnet-fork') {
       network = 'mainnet';
     }
-    if (network == 'heco-fork') {
+    if (network === 'heco-fork') {
       network = 'heco';
     }
-    if (network == 'bsc-fork') {
+    if (network === 'bsc-fork') {
       network = 'bsc';
     }
     const isDev = ['ganache', 'test', 'develop', 'goerli', 'ropsten', 'kovan'].includes(network);
