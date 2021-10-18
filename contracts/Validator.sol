@@ -21,11 +21,14 @@ contract Validator is IValidator {
     // source => lockId => true
     mapping(bytes4 => mapping(uint256 => bool)) public unlocks;
 
+    //TODO: Remove bridgeV0;
     IBridgeV0 private bridgeV0;
     //TODO: Change oracle?
     address private oracle;
     bytes4 public blockchainId;
 
+    // TODO: add init lock id
+    // TODO: add map of min lock id per chain
     constructor(IBridgeV0 _bridgeV0, address _oracle, bytes4 _blockchainId) {
         bridgeV0 = _bridgeV0;
         oracle = _oracle;
