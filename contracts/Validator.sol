@@ -40,6 +40,7 @@ contract Validator is IValidator {
         return locks.length;
     }
 
+    // TODO: Validate only bridge
     function createLock(
         address sender,
         bytes32 recipient,
@@ -64,6 +65,7 @@ contract Validator is IValidator {
         return lockId;
     }
 
+    // TODO: Validate only bridge
     function createUnlock(
         uint256 lockId,
         address recipient,
