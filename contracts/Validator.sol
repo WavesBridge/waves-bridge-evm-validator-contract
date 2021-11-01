@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 import "./interfaces/IValidator.sol";
-import "./interfaces/IBridgeV0.sol";
+
+uint128 constant pow120 = 2 ** 120;
 
 contract Validator is IValidator {
     // Structure for lock info
@@ -15,76 +16,80 @@ contract Validator is IValidator {
     }
 
     // List of locks
-    Lock[] public locks;
+    mapping(uint128 => Lock) public locks;
 
     // Map for received transactions
     // source => lockId => true
-    mapping(bytes4 => mapping(uint256 => bool)) public unlocks;
+    mapping(bytes4 => mapping(uint128 => bool)) public unlocks;
 
-    //TODO: Remove bridgeV0;
-    IBridgeV0 private bridgeV0;
     //TODO: Change oracle?
     address private oracle;
+    uint256 private nonce;
     bytes4 public blockchainId;
+    address public bridge;
+    uint8 public version;
 
-    // TODO: add init lock id
-    // TODO: add map of min lock id per chain
-    constructor(IBridgeV0 _bridgeV0, address _oracle, bytes4 _blockchainId) {
-        bridgeV0 = _bridgeV0;
+    modifier onlyBridge() {
+        require(msg.sender == bridge, "Validator: caller is not the bridge");
+        _;
+    }
+
+    modifier checkLockVersion(uint128 lockId) {
+        require(uint8(lockId / pow120) == version, "Validator: wrong lock version");
+        _;
+    }
+
+    constructor(address _oracle, bytes4 _blockchainId, address _bridge, uint8 _version) {
         oracle = _oracle;
         blockchainId = _blockchainId;
+        bridge = _bridge;
+        version = _version;
     }
 
-    // Method to get amount of locks
-    function lockLength() external view returns (uint256) {
-        return locks.length;
-    }
-
-    // TODO: Validate only bridge
     function createLock(
+        uint128 lockId,
         address sender,
         bytes32 recipient,
         uint256 amount,
         bytes4 destination,
         bytes4 tokenSource,
         bytes32 tokenSourceAddress
-    ) external override returns (uint256) {
+    ) external override onlyBridge checkLockVersion(lockId) returns (uint128)  {
         require(destination != blockchainId, "Validator: source chain");
+        require(locks[lockId].sender == address(0), "Validator: lock id already exists");
+
 
         // Create and add lock structure to the locks list
-        uint256 lockId = locks.length;
-        locks.push(Lock({
+        locks[lockId] = Lock({
             sender: sender,
             recipient: recipient,
             amount: amount,
             destination: destination,
             tokenSource: tokenSource,
             tokenSourceAddress: tokenSourceAddress
-        }));
+        });
 
         return lockId;
     }
 
-    // TODO: Validate only bridge
     function createUnlock(
-        uint256 lockId,
+        uint128 lockId,
         address recipient,
         uint256 amount,
         bytes4 lockSource,
         bytes4 tokenSource,
         bytes32 tokenSourceAddress,
         bytes calldata signature
-    ) external override returns (bool) {
+    ) external override onlyBridge checkLockVersion(lockId) returns (bool) {
         bytes32 hash = keccak256(abi.encodePacked(lockId, recipient, amount, lockSource, tokenSource, tokenSourceAddress, blockchainId, "unlock"));
         require(recoverSigner(prefixed(hash), signature) == oracle, "Validator: invalid signature");
 
-        require(!unlocks[lockSource][lockId] && !bridgeV0.unlocks(lockSource, lockId), "Validator: funds already received");
+        require(!unlocks[lockSource][lockId], "Validator: funds already received");
 
         // Mark lock as received
         unlocks[lockSource][lockId] = true;
         return true;
     }
-
 
     function splitSignature(bytes memory sig) internal pure returns (uint8 v, bytes32 r, bytes32 s)
     {

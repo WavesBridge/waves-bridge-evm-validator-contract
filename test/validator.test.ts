@@ -1,17 +1,24 @@
 import { asciiToHex, padRight } from 'web3-utils';
 import { MockBridgeInstance, ValidatorInstance } from '../types';
-import { expectRevert} from '@openzeppelin/test-helpers';
+import { expectRevert, expectEvent} from '@openzeppelin/test-helpers';
+import BN from 'bn.js';
+import * as crypto from 'crypto';
 
 const Validator = artifacts.require("Validator");
-const Bridge = artifacts.require("MockBridge");
 
 function addressToBytes32(address: string): string {
   return padRight(address.toLowerCase(), 64, '0')
 }
 
+function getRandomLockId(version: number): BN {
+  const buffer = crypto.randomBytes(16);
+  buffer[0] = version
+  return new BN(buffer);
+}
+
 function sign(privateKey, lockId, recipient, amount, lockSource, tokenSource, tokenSourceAddress, destination) {
   const hash = web3.utils.soliditySha3(
-    {t: 'uint256', v: lockId},
+    {t: 'uint128', v: lockId},
     {t: 'address', v: recipient},
     {t: 'uint256', v: amount},
     {t: 'bytes4', v: lockSource},
@@ -33,13 +40,14 @@ contract('Validator', (accounts) => {
   const B_NETWORK = 'RPS';
   const B_NETWORK_HEX = padRight(asciiToHex(B_NETWORK), 8);
   const oracle = web3.eth.accounts.create();
+  const version = 1;
+  const theLockId = getRandomLockId(version);
 
-  let bridge: MockBridgeInstance;
+  let bridge = accounts[0];
   let validator: ValidatorInstance;
 
   before(async () => {
-    bridge = await Bridge.new();
-    validator = await Validator.new(bridge.address, oracle.address, A_NETWORK_HEX);
+    validator = await Validator.new(oracle.address, A_NETWORK_HEX, bridge, version);
   })
 
   it('success: create lock', async () => {
@@ -47,9 +55,8 @@ contract('Validator', (accounts) => {
     const recipient = web3.eth.accounts.create();
     const token = web3.eth.accounts.create();
     const amount = 1000;
-    const lockId = (await validator.lockLength()).toString();
-    await validator.createLock(sender.address, recipient.address, amount, B_NETWORK_HEX, A_NETWORK_HEX, token.address);
-
+    const lockId = theLockId;
+    await validator.createLock(lockId, sender.address, recipient.address, amount, B_NETWORK_HEX, A_NETWORK_HEX, token.address);
     const lock = await validator.locks(lockId);
     expect(lock).deep.include({
       sender: sender.address,
@@ -60,11 +67,38 @@ contract('Validator', (accounts) => {
     });
   });
 
+  it('fail: lock source chain', async () => {
+    const sender = web3.eth.accounts.create();
+    const recipient = web3.eth.accounts.create();
+    const token = web3.eth.accounts.create();
+    const amount = 1000;
+    const lockId = theLockId;
+    await expectRevert(validator.createLock(lockId, sender.address, recipient.address, amount, A_NETWORK_HEX, A_NETWORK_HEX, token.address), "Validator: source chain");
+  });
+
+  it('fail: lock source chain', async () => {
+    const sender = web3.eth.accounts.create();
+    const recipient = web3.eth.accounts.create();
+    const token = web3.eth.accounts.create();
+    const amount = 1000;
+    const lockId = theLockId;
+    await expectRevert(validator.createLock(lockId, sender.address, recipient.address, amount, B_NETWORK_HEX, A_NETWORK_HEX, token.address), "Validator: lock id already exists");
+  });
+
+  it('fail: wrong version', async () => {
+    const sender = web3.eth.accounts.create();
+    const recipient = web3.eth.accounts.create();
+    const token = web3.eth.accounts.create();
+    const amount = 1000;
+    const lockId = getRandomLockId(2);
+    await expectRevert(validator.createLock(lockId, sender.address, recipient.address, amount, B_NETWORK_HEX, A_NETWORK_HEX, token.address), "Validator: wrong lock version");
+  });
+
   it('success: create unlock', async () => {
     const recipient = web3.eth.accounts.create();
     const token = web3.eth.accounts.create();
     const amount = 1000;
-    const lockId = 7;
+    const lockId = theLockId;
     const lockSource = B_NETWORK_HEX;
     const tokenSource = A_NETWORK_HEX;
     const destination = A_NETWORK_HEX;
@@ -74,11 +108,11 @@ contract('Validator', (accounts) => {
     expect(await validator.unlocks(lockSource, lockId)).eq(true);
   });
 
-  it('fail: already exists', async () => {
+  it('fail: unlock already exists', async () => {
     const recipient = web3.eth.accounts.create();
     const token = web3.eth.accounts.create();
     const amount = 1000;
-    const lockId = 7;
+    const lockId = theLockId;
     const lockSource = B_NETWORK_HEX;
     const tokenSource = A_NETWORK_HEX;
     const destination = A_NETWORK_HEX;
@@ -86,12 +120,25 @@ contract('Validator', (accounts) => {
     await expectRevert(validator.createUnlock(lockId, recipient.address, amount, lockSource, tokenSource, token.address, signature), "Validator: funds already received");
   });
 
-  it('fail: invalid signature', async () => {
+
+  it('fail: unlock wrong version', async () => {
+    const recipient = web3.eth.accounts.create();
+    const token = web3.eth.accounts.create();
+    const amount = 1000;
+    const lockId = getRandomLockId(2);
+    const lockSource = B_NETWORK_HEX;
+    const tokenSource = A_NETWORK_HEX;
+    const destination = A_NETWORK_HEX;
+    const signature = sign(oracle.privateKey, lockId, recipient.address, amount, lockSource, tokenSource, token.address, destination)
+    await expectRevert(validator.createUnlock(lockId, recipient.address, amount, lockSource, tokenSource, token.address, signature), "Validator: wrong lock version");
+  });
+
+  it('fail: unlock invalid signature', async () => {
     const recipient = web3.eth.accounts.create();
     const token = web3.eth.accounts.create();
     const wrongRecipient = web3.eth.accounts.create();
     const amount = 1000;
-    const lockId = 8;
+    const lockId = getRandomLockId(version);
     const lockSource = B_NETWORK_HEX;
     const tokenSource = A_NETWORK_HEX;
     const destination = A_NETWORK_HEX;
