@@ -94,6 +94,30 @@ contract('Validator', (accounts) => {
     await expectRevert(validator.createLock(lockId, sender.address, recipient.address, amount, B_NETWORK_HEX, A_NETWORK_HEX, token.address), "Validator: wrong lock version");
   });
 
+  it('success: set oracle', async () => {
+    const newOracle = web3.eth.accounts.create().address;
+    await validator.setOracle(newOracle);
+
+    const recipient = web3.eth.accounts.create();
+    const token = web3.eth.accounts.create();
+    const amount = 1000;
+    const lockId = theLockId;
+    const lockSource = B_NETWORK_HEX;
+    const tokenSource = A_NETWORK_HEX;
+    const destination = A_NETWORK_HEX;
+    const signature = sign(oracle.privateKey, lockId, recipient.address, amount, lockSource, tokenSource, token.address, destination)
+    await expectRevert(validator.createUnlock(lockId, recipient.address, amount, lockSource, tokenSource, token.address, signature), "Validator: invalid signature");
+  });
+
+  it('fail: set oracle invalid owner', async () => {
+    const newOracle = web3.eth.accounts.create().address;
+    await expectRevert(validator.setOracle(newOracle, {from: accounts[3]}), "Ownable: caller is not the owner");
+  });
+
+  it('success: set oracle back', async () => {
+    await validator.setOracle(oracle.address);
+  });
+
   it('success: create unlock', async () => {
     const recipient = web3.eth.accounts.create();
     const token = web3.eth.accounts.create();

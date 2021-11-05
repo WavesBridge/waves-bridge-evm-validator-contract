@@ -5,33 +5,13 @@ module.exports = (artifacts: Truffle.Artifacts) => {
     if (network === 'test') {
       return;
     }
-    if (network === 'polygon-fork') {
-      network = 'polygon';
-    }
-    if (network === 'mainnet-fork') {
-      network = 'mainnet';
-    }
-    if (network === 'heco-fork') {
-      network = 'heco';
-    }
-    if (network === 'bsc-fork') {
-      network = 'bsc';
-    }
+
+    network = network.replace('-fork', '');
     const isDev = ['ganache', 'test', 'develop', 'goerli', 'ropsten', 'kovan'].includes(network);
-    const chainIdMap = {
-      ganache: 'GNCH',
-      test: 'TST',
-      develop: 'DEV',
-      goerli: 'GRL',
-      ropsten: 'RPS',
-      kovan: 'KVN',
-      mainnet: process.env.BLOCKCHAIN_ID_ETH,
-      bsc: process.env.BLOCKCHAIN_ID_BSC,
-      heco: process.env.BLOCKCHAIN_ID_HECO,
-      polygon: process.env.BLOCKCHAIN_ID_POL
-    }
+
     let oracleAddress: string | undefined;
     let bridge: string | undefined;
+    let chainId: string | undefined;
     if (isDev) {
       oracleAddress = '0xC709Eb04f69442B4Cb6A9b472F810aA705E3FaA2';
     }
@@ -39,18 +19,37 @@ module.exports = (artifacts: Truffle.Artifacts) => {
       case 'mainnet':
         oracleAddress = process.env.ORACLE_ADDRESS_ETH;
         bridge = process.env.BRIDGE_ETH;
+        chainId = process.env.BLOCKCHAIN_ID_ETH;
         break;
       case 'bsc':
         oracleAddress = process.env.ORACLE_ADDRESS_BSC;
         bridge = process.env.BRIDGE_BSC;
+        chainId = process.env.BLOCKCHAIN_ID_BSC;
         break;
       case 'heco':
         oracleAddress = process.env.ORACLE_ADDRESS_HECO;
         bridge = process.env.BRIDGE_HECO;
+        chainId = process.env.BLOCKCHAIN_ID_HECO;
         break;
       case 'polygon':
         oracleAddress = process.env.ORACLE_ADDRESS_POL;
         bridge = process.env.BRIDGE_POL;
+        chainId = process.env.BLOCKCHAIN_ID_POL;
+        break;
+      case 'avalanche':
+        oracleAddress = process.env.ORACLE_ADDRESS_AVA;
+        bridge = process.env.BRIDGE_AVA;
+        chainId = process.env.BLOCKCHAIN_ID_AVA;
+        break;
+      case 'celo':
+        oracleAddress = process.env.ORACLE_ADDRESS_CELO;
+        bridge = process.env.BRIDGE_CELO;
+        chainId = process.env.BLOCKCHAIN_ID_CELO;
+        break;
+      case 'kovan':
+        oracleAddress = process.env.ORACLE_ADDRESS_KVN;
+        bridge = process.env.BRIDGE_KVN;
+        chainId = process.env.BLOCKCHAIN_ID_KVN;
         break;
     }
 
@@ -64,7 +63,7 @@ module.exports = (artifacts: Truffle.Artifacts) => {
       throw new Error('Bridge v0 address not specified');
     }
 
-    if (!chainIdMap[network]) {
+    if (!chainId) {
       throw new Error('Chain id is not specified');
     }
 
@@ -72,11 +71,12 @@ module.exports = (artifacts: Truffle.Artifacts) => {
       throw new Error('Version is not specified');
     }
 
-    console.log(oracleAddress);
-    console.log(bridge);
+    console.log('oracleAddress', oracleAddress);
+    console.log('bridge', bridge);
+    console.log('chainId', chainId);
 
     const validator = artifacts.require('Validator');
 
-    await deployer.deploy(validator, oracleAddress, Web3.utils.padRight(Web3.utils.asciiToHex(chainIdMap[network]), 8, '0'), bridge, version);
+    await deployer.deploy(validator, oracleAddress, Web3.utils.padRight(Web3.utils.asciiToHex(chainId), 8, '0'), bridge, version);
   } as Truffle.Migration;
 };

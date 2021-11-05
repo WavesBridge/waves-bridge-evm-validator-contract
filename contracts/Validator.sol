@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 import "./interfaces/IValidator.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 uint128 constant pow120 = 2 ** 120;
 
-contract Validator is IValidator {
+contract Validator is IValidator, Ownable {
     // Structure for lock info
     struct Lock {
         address sender;
@@ -22,9 +23,7 @@ contract Validator is IValidator {
     // source => lockId => true
     mapping(bytes4 => mapping(uint128 => bool)) public unlocks;
 
-    //TODO: Change oracle?
     address private oracle;
-    uint256 private nonce;
     bytes4 public blockchainId;
     address public bridge;
     uint8 public version;
@@ -89,6 +88,10 @@ contract Validator is IValidator {
         // Mark lock as received
         unlocks[lockSource][lockId] = true;
         return true;
+    }
+
+    function setOracle(address _oracle) public onlyOwner {
+        oracle = _oracle;
     }
 
     function splitSignature(bytes memory sig) internal pure returns (uint8 v, bytes32 r, bytes32 s)
