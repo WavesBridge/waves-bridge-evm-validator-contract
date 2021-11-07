@@ -53,10 +53,9 @@ contract Validator is IValidator, Ownable {
         bytes4 destination,
         bytes4 tokenSource,
         bytes32 tokenSourceAddress
-    ) external override onlyBridge checkLockVersion(lockId) returns (uint128)  {
+    ) external override onlyBridge checkLockVersion(lockId) {
         require(destination != blockchainId, "Validator: source chain");
         require(locks[lockId].sender == address(0), "Validator: lock id already exists");
-
 
         // Create and add lock structure to the locks list
         locks[lockId] = Lock({
@@ -67,8 +66,6 @@ contract Validator is IValidator, Ownable {
             tokenSource: tokenSource,
             tokenSourceAddress: tokenSourceAddress
         });
-
-        return lockId;
     }
 
     function createUnlock(
@@ -79,39 +76,43 @@ contract Validator is IValidator, Ownable {
         bytes4 tokenSource,
         bytes32 tokenSourceAddress,
         bytes calldata signature
-    ) external override onlyBridge checkLockVersion(lockId) returns (bool) {
-        bytes32 hash = keccak256(abi.encodePacked(lockId, recipient, amount, lockSource, tokenSource, tokenSourceAddress, blockchainId, "unlock"));
+    ) external override onlyBridge checkLockVersion(lockId) {
+        bytes32 hash = keccak256(abi.encodePacked(
+            lockId, 
+            recipient, 
+            amount, 
+            lockSource, 
+            tokenSource, 
+            tokenSourceAddress, 
+            blockchainId, "unlock"));
         require(recoverSigner(prefixed(hash), signature) == oracle, "Validator: invalid signature");
 
         require(!unlocks[lockSource][lockId], "Validator: funds already received");
 
         // Mark lock as received
         unlocks[lockSource][lockId] = true;
-        return true;
     }
 
     function setOracle(address _oracle) public onlyOwner {
         oracle = _oracle;
     }
 
-    function splitSignature(bytes memory sig) internal pure returns (uint8 v, bytes32 r, bytes32 s)
-    {
+    function splitSignature(bytes memory sig) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
         require(sig.length == 65);
 
         assembly {
-        // first 32 bytes, after the length prefix
+            // first 32 bytes, after the length prefix
             r := mload(add(sig, 32))
-        // second 32 bytes
+            // second 32 bytes
             s := mload(add(sig, 64))
-        // final byte (first byte of the next 32 bytes)
+            // final byte (first byte of the next 32 bytes)
             v := byte(0, mload(add(sig, 96)))
         }
 
         return (v, r, s);
     }
 
-    function recoverSigner(bytes32 message, bytes memory sig) internal pure returns (address)
-    {
+    function recoverSigner(bytes32 message, bytes memory sig) internal pure returns (address) {
         (uint8 v, bytes32 r, bytes32 s) = splitSignature(sig);
 
         return ecrecover(message, v, r, s);
