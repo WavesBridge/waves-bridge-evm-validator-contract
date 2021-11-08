@@ -60,7 +60,7 @@ module.exports = (artifacts: Truffle.Artifacts) => {
     }
 
     if (!bridge) {
-      throw new Error('Bridge v0 address not specified');
+      throw new Error('Bridge address not specified');
     }
 
     if (!chainId) {

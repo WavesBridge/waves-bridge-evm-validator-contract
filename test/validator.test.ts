@@ -1,5 +1,5 @@
 import { asciiToHex, padRight } from 'web3-utils';
-import { MockBridgeInstance, ValidatorInstance } from '../types';
+import { ValidatorInstance } from '../types';
 import { expectRevert, expectEvent} from '@openzeppelin/test-helpers';
 import BN from 'bn.js';
 import * as crypto from 'crypto';
